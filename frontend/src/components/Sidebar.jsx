@@ -8,8 +8,7 @@ import {
   FileText, 
   ShieldCheck, 
   SlidersHorizontal,
-  X,
-  Server
+  X
 } from 'lucide-react';
 import { useLogs } from '../context/LogContext';
 
@@ -100,20 +99,6 @@ function Sidebar() {
           ))}
         </nav>
 
-        {/* Academic Project Info Box */}
-        <div className="p-4 border-t border-gray-200 bg-gray-50/70 text-xs">
-          <div className="flex items-center gap-2 mb-1.5 text-gray-700 font-medium">
-            <Server className="w-3.5 h-3.5 text-blue-700" />
-            <span>Academic Demonstration</span>
-          </div>
-          <p className="text-gray-500 text-[11px] leading-relaxed">
-            Rule-Based Log Analyzer & Security Event Classification.
-          </p>
-          <div className="mt-2.5 pt-2 border-t border-gray-200/80 flex items-center justify-between text-[10px] text-gray-400">
-            <span>Status: Ready</span>
-            <span className="text-emerald-600 font-medium">● Backend API</span>
-          </div>
-        </div>
       </aside>
     </>
   );
