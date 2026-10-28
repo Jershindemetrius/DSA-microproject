@@ -63,4 +63,6 @@ export const deleteLog = async (id) => api.delete(`/logs/${id}`);
 export const exportLogs = async (params = {}) =>
   (await api.get('/logs/export.csv', { params, responseType: 'blob' })).data;
 export const fetchAnalysisSummary = async () => (await api.get('/analysis/summary')).data;
+export const explainAnalysis = async (alertIds) =>
+  (await api.post('/analysis/explain', { alert_ids: alertIds })).data;
 export const checkHealth = async () => (await api.get('/health')).data;

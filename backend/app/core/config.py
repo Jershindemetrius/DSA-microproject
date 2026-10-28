@@ -1,6 +1,7 @@
 import os
 from typing import List
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings
 
 
@@ -16,6 +17,8 @@ class Settings(BaseSettings):
     max_upload_size: int = 5 * 1024 * 1024
     max_records_per_upload: int = 5000
     log_level: str = "INFO"
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-2.5-flash"
 
     class Config:
         env_file = ".env"

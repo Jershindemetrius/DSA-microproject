@@ -34,6 +34,7 @@ def run_analysis(session: Session, failed_attempt_threshold: int = 3, sliding_wi
         for log in logs
     ]
     alerts, algorithms = detect_threats(normalized_logs, failed_attempt_threshold, sliding_window_seconds, suspicious_pattern)
+    alert_records = []
     for alert in alerts:
         from app.models.alert import Alert as AlertModel
         alert_model = AlertModel(
@@ -52,9 +53,13 @@ def run_analysis(session: Session, failed_attempt_threshold: int = 3, sliding_wi
             detected_at=datetime.utcnow(),
         )
         session.add(alert_model)
+        alert_records.append(alert_model)
     session.commit()
+    for alert_record in alert_records:
+        session.refresh(alert_record)
     return {
         "alerts_generated": len(alerts),
+        "alert_ids": [alert.id for alert in alert_records],
         "algorithms": algorithms,
         "failed_attempt_threshold": failed_attempt_threshold,
         "sliding_window_seconds": sliding_window_seconds,

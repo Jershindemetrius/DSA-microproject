@@ -6,11 +6,12 @@ import {
   FileText,
   Loader2,
   RotateCcw,
+  Sparkles,
   UploadCloud,
 } from 'lucide-react';
 import { useLogs } from '../context/LogContext';
 import LogTable from '../components/LogTable';
-import { fetchLogRecords, runAnalysis, uploadLogFile } from '../services/api';
+import { explainAnalysis, fetchLogRecords, runAnalysis, uploadLogFile } from '../services/api';
 
 const MAX_UPLOAD_SIZE = 5 * 1024 * 1024;
 const ACCEPTED_EXTENSIONS = ['.json', '.jsonl', '.ndjson', '.log', '.txt'];
@@ -32,6 +33,9 @@ function Analyze() {
   const [errorMessage, setErrorMessage] = useState('');
   const [uploadResult, setUploadResult] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [aiResult, setAiResult] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
   const [logsError, setLogsError] = useState('');
@@ -89,6 +93,8 @@ function Analyze() {
     setErrorMessage('');
     setUploadResult(null);
     setAnalysisResult(null);
+    setAiResult(null);
+    setAiError('');
     try {
       const ingestion = await uploadLogFile(selectedFile);
       setUploadResult(ingestion);
@@ -104,10 +110,26 @@ function Analyze() {
     }
   };
 
+  const handleExplainWithAI = async () => {
+    if (!analysisResult?.alert_ids?.length) return;
+    setAiLoading(true);
+    setAiError('');
+    setAiResult(null);
+    try {
+      setAiResult(await explainAnalysis(analysisResult.alert_ids.slice(0, 5)));
+    } catch (error) {
+      setAiError(error.message);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const clearSelection = () => {
     setSelectedFile(null);
     setUploadResult(null);
     setAnalysisResult(null);
+    setAiResult(null);
+    setAiError('');
     setErrorMessage('');
     setStatus('idle');
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -229,6 +251,91 @@ function Analyze() {
             <ul className="mt-3 list-disc list-inside text-xs space-y-1">
               {uploadResult.errors.map((message, index) => <li key={`${index}-${message}`}>{message}</li>)}
             </ul>
+          )}
+        </section>
+      )}
+
+      {analysisResult && (
+        <section className="bg-white rounded-lg border border-gray-200 shadow-2xs p-4 md:p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Optional Gemini AI explanation</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                The DSA/rule-based detections above remain authoritative. AI only provides an additional interpretation.
+              </p>
+            </div>
+            <button
+              onClick={handleExplainWithAI}
+              disabled={aiLoading || !analysisResult.alert_ids?.length}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-xs font-semibold bg-violet-700 text-white hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              <span>{aiLoading ? 'Generating explanation…' : 'Explain DSA findings with Gemini'}</span>
+            </button>
+          </div>
+          {!analysisResult.alert_ids?.length && (
+            <p className="text-xs text-gray-500">This analysis generated no alerts to explain.</p>
+          )}
+          {aiError && (
+            <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+              {aiError}
+            </div>
+          )}
+          {aiResult && !aiResult.available && (
+            <div role="status" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              {aiResult.availability_message || 'AI explanations are unavailable. The DSA findings remain available.'}
+            </div>
+          )}
+          {aiResult?.deterministic_findings?.length > 0 && (
+            <div className="rounded-md border border-blue-200 bg-blue-50/60 p-3">
+              <h4 className="text-xs font-bold text-blue-950">Authoritative DSA/rule-based findings</h4>
+              <ul className="mt-2 space-y-2">
+                {aiResult.deterministic_findings.map((finding) => (
+                  <li key={finding.id} className="text-xs text-slate-800">
+                    <span className="font-semibold">#{finding.id} · {finding.severity} · {finding.title}</span>
+                    <p className="mt-0.5 text-slate-600">{finding.description}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {aiResult?.available && (
+            <div className="rounded-md border border-violet-200 bg-violet-50/50 p-4 space-y-4">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-violet-800">Gemini AI-generated interpretation</p>
+                <p className="mt-1 text-sm text-slate-800">{aiResult.ai_summary}</p>
+                <p className="mt-1 text-[11px] text-violet-800">
+                  Evidence: {aiResult.summary_evidence_refs.join(', ')}
+                </p>
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-slate-900">Alert explanations</h4>
+                <ul className="mt-2 space-y-2">
+                  {aiResult.explanations.map((item) => (
+                    <li key={item.alert_id} className="text-xs text-slate-700">
+                      <p><span className="font-semibold">Alert #{item.alert_id}:</span> {item.explanation}</p>
+                      <p className="mt-1 text-[11px] text-violet-800">Evidence: {item.evidence_refs.join(', ')}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              {aiResult.investigation_suggestions.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">Read-only investigation suggestions</h4>
+                  <ul className="mt-2 list-disc list-inside space-y-1 text-xs text-slate-700">
+                    {aiResult.investigation_suggestions.map((item, index) => (
+                      <li key={`${index}-${item.suggestion}`}>
+                        {item.suggestion}
+                        <span className="ml-1 text-[11px] text-violet-800">Evidence: {item.evidence_refs.join(', ')}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <p className="text-[11px] text-gray-600">
+                This AI-generated content is advisory and may be incorrect. It does not modify recorded findings or take action.
+              </p>
+            </div>
           )}
         </section>
       )}

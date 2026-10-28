@@ -7,8 +7,10 @@ from app.api.dependencies import get_current_user, get_db
 from app.models.alert import Alert
 from app.models.log_entry import LogEntry
 from app.models.user import User
-from app.schemas.analysis import AnalysisRunRequest, AnalysisSummaryResponse
+from app.schemas.analysis import AIAnalysisRequest, AIAnalysisResponse, AnalysisRunRequest, AnalysisSummaryResponse
+from app.services.ai_analysis_service import explain_alerts
 from app.services.analysis_service import run_analysis, summary
+from app.core.config import settings
 from app.dsa.event_correlation import EventCorrelationGraph
 
 router = APIRouter(prefix="/api/v1/analysis", tags=["analysis"])
@@ -38,6 +40,27 @@ def analysis_summary(db: Session = Depends(get_db), user: User = Depends(get_cur
         suspicious_usernames=values["suspicious_usernames"],
         alerts_generated=values["total_alerts"],
     )
+
+
+@router.post("/explain", response_model=AIAnalysisResponse)
+def explain_analysis_route(
+    payload: AIAnalysisRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    api_key = settings.gemini_api_key
+    try:
+        return explain_alerts(
+            db,
+            owner_id=user.id,
+            alert_ids=payload.alert_ids,
+            api_key=api_key.get_secret_value() if api_key else None,
+            model=settings.gemini_model,
+        )
+    except LookupError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
 
 
 @router.get("/top-suspicious-ips")

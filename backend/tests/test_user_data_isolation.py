@@ -77,6 +77,11 @@ def test_logs_alerts_and_rules_are_scoped_to_the_authenticated_user(client, auth
 
     assert client.get("/api/v1/alerts", headers=second_headers).json() == []
     assert client.get(f"/api/v1/alerts/{first_alert_id}", headers=second_headers).status_code == 404
+    assert client.post(
+        "/api/v1/analysis/explain",
+        headers=second_headers,
+        json={"alert_ids": [first_alert_id]},
+    ).status_code == 404
     assert client.patch(
         f"/api/v1/alerts/{first_alert_id}",
         json={"status": "resolved"},
