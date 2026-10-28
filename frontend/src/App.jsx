@@ -1,0 +1,53 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Sidebar from './components/Sidebar';
+import Header from './components/Header';
+import Dashboard from './pages/Dashboard';
+import Analyze from './pages/Analyze';
+import Logs from './pages/Logs';
+import Alerts from './pages/Alerts';
+import Reports from './pages/Reports';
+import Rules from './pages/Rules';
+import { LogProvider } from './context/LogContext';
+import { useLogs } from './context/LogContext';
+import AuthScreen from './components/AuthScreen';
+
+function App() {
+  return (
+    <LogProvider>
+      <AppShell />
+    </LogProvider>
+  );
+}
+
+function AppShell() {
+  const { user, authLoading } = useLogs();
+  if (authLoading) {
+    return <div className="min-h-screen flex items-center justify-center text-sm text-gray-600">Checking session…</div>;
+  }
+  if (!user) return <AuthScreen />;
+
+  return (
+    <Router>
+      <div className="flex min-h-screen bg-slate-50 text-slate-900 font-sans antialiased">
+        <Sidebar />
+        <div className="flex flex-col flex-1 min-w-0">
+          <Header />
+          <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto max-w-7xl w-full mx-auto">
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/analyze" element={<Analyze />} />
+              <Route path="/logs" element={<Logs />} />
+              <Route path="/alerts" element={<Alerts />} />
+              <Route path="/rules" element={<Rules />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+        </div>
+      </div>
+    </Router>
+  );
+}
+
+export default App;

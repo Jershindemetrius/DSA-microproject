@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Shield background -->
+  <path d="M16 2L4 6v8c0 8.5 5.1 14.5 12 16 6.9-1.5 12-7.5 12-16V6L16 2z" fill="#1e3a8a" stroke="#2563eb" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- Shield inner emblem -->
+  <path d="M16 5L6 8.5v6c0 6.8 4.2 11.8 10 13.2 5.8-1.4 10-6.4 10-13.2v-6L16 5z" fill="#172554"/>
+  <!-- Central Lock / Security Pulse icon -->
+  <rect x="11" y="14" width="10" height="8" rx="1.5" fill="#3b82f6"/>
+  <path d="M13 14v-2.5a3 3 0 0 1 6 0V14" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="16" cy="18" r="1.2" fill="#ffffff"/>
+  <path d="M16 19.2v1.5" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round"/>
+</svg>

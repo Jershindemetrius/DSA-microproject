@@ -1,0 +1,7 @@
+﻿{"timestamp":"2025-01-01T10:00:00Z","source_ip":"192.168.1.10","username":"alice","event_type":"successful_login","severity":"info","message":"SSH login succeeded for alice","auth_result":"success"}
+{"timestamp":"2025-01-01T10:01:00Z","source_ip":"203.0.113.5","username":"bob","event_type":"failed_login","severity":"high","message":"Failed password for bob from 203.0.113.5 port 22 ssh2","auth_result":"failed"}
+{"timestamp":"2025-01-01T10:01:10Z","source_ip":"203.0.113.5","username":"bob","event_type":"failed_login","severity":"high","message":"Failed password for bob from 203.0.113.5 port 22 ssh2","auth_result":"failed"}
+{"timestamp":"2025-01-01T10:01:20Z","source_ip":"203.0.113.5","username":"carol","event_type":"failed_login","severity":"high","message":"Failed password for carol from 203.0.113.5 port 22 ssh2","auth_result":"failed"}
+{"timestamp":"2025-01-01T10:01:50Z","source_ip":"203.0.113.5","username":"dave","event_type":"failed_login","severity":"high","message":"Failed password for dave from 203.0.113.5 port 22 ssh2","auth_result":"failed"}
+{"timestamp":"2025-01-01T10:02:00Z","source_ip":"203.0.113.5","username":"dave","event_type":"successful_login","severity":"info","message":"Accepted password for dave from 203.0.113.5 port 22 ssh2","auth_result":"success"}
+
