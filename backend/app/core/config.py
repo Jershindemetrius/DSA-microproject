@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     max_records_per_upload: int = 5000
     log_level: str = "INFO"
     gemini_api_key: SecretStr | None = None
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.8-flash"
 
     class Config:
         env_file = ".env"

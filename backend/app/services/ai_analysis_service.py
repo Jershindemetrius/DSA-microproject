@@ -118,6 +118,10 @@ def _error_message(error: Exception) -> str:
             return "Gemini rate limit or quota reached. The DSA findings are still available; try again later."
         if code in {401, 403}:
             return "Gemini rejected the configured credentials. Check GEMINI_API_KEY on the backend."
+        if code == 404:
+            return "The configured Gemini model is unavailable for this API key. Set GEMINI_MODEL in backend/.env to an available model. The DSA findings are unchanged."
+        if code is not None and code >= 500:
+            return f"Gemini is temporarily unavailable (HTTP {code}). The DSA findings are unchanged; try again later."
         return "Gemini could not complete the explanation request. The DSA findings are unchanged."
     if isinstance(error, (httpx.TimeoutException, TimeoutError)):
         return "Gemini timed out. The DSA findings are still available; try again."

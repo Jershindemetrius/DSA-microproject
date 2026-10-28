@@ -152,6 +152,35 @@ def test_gemini_rate_limit_is_reported_without_hiding_dsa_findings(client, auth_
     assert data["deterministic_findings"][0]["id"] == alert_id
 
 
+def test_unavailable_gemini_model_has_actionable_message(client, auth_headers, monkeypatch):
+    alert_id = create_alert(client, auth_headers)
+    monkeypatch.setattr(settings, "gemini_api_key", SecretStr("mock-only-key"))
+
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            raise errors.APIError(404, {"error": {"message": "model is no longer available"}})
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.models = FakeModels()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(ai_analysis_service.genai, "Client", FakeClient)
+    response = client.post(
+        "/api/v1/analysis/explain",
+        headers=auth_headers,
+        json={"alert_ids": [alert_id]},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["available"] is False
+    assert "GEMINI_MODEL" in data["availability_message"]
+    assert data["deterministic_findings"][0]["id"] == alert_id
+
+
 def test_gemini_response_must_reference_only_supplied_evidence(client, auth_headers, monkeypatch):
     alert_id = create_alert(client, auth_headers)
     monkeypatch.setattr(settings, "gemini_api_key", SecretStr("mock-only-key"))
