@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import DateTime, Integer, JSON, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -9,6 +9,7 @@ class LogEntry(Base):
     __tablename__ = "log_entries"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True, nullable=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     source_ip: Mapped[str | None] = mapped_column(String(45), nullable=True, index=True)
     destination_ip: Mapped[str | None] = mapped_column(String(45), nullable=True, index=True)

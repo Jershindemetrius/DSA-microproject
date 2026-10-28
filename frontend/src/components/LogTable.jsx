@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import SeverityBadge from './SeverityBadge';
-import { Eye, X, Terminal, ShieldAlert, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Eye, X, Terminal, ShieldAlert, CheckCircle, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 
-function LogTable({ logs = [], pageSize = 10, showPagination = true }) {
+function LogTable({ logs = [], pageSize = 10, showPagination = true, onDelete }) {
   const [selectedLog, setSelectedLog] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -79,11 +79,13 @@ function LogTable({ logs = [], pageSize = 10, showPagination = true }) {
                             <ShieldAlert className="w-3 h-3" />
                             {log.detection}
                           </span>
-                        ) : (
+                        ) : log.detection ? (
                           <span className="inline-flex items-center gap-1 text-[11px] text-gray-500">
                             <CheckCircle className="w-3 h-3 text-emerald-500" />
                             Normal
                           </span>
+                        ) : (
+                          <span className="text-[11px] text-gray-500">Not analyzed</span>
                         )}
                       </td>
                       <td className="px-3.5 py-2.5 whitespace-nowrap text-right font-sans">
@@ -94,6 +96,20 @@ function LogTable({ logs = [], pageSize = 10, showPagination = true }) {
                           <Eye className="w-3.5 h-3.5" />
                           <span>Inspect</span>
                         </button>
+                        {onDelete && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Delete log record ${log.id}? This cannot be undone.`)) {
+                                onDelete(log.id);
+                              }
+                            }}
+                            className="ml-1 inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:text-red-900 hover:underline px-2 py-1 rounded bg-red-50/60 hover:bg-red-50"
+                            aria-label={`Delete log ${log.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -177,10 +193,16 @@ function LogTable({ logs = [], pageSize = 10, showPagination = true }) {
 
               <div>
                 <span className="text-gray-600 block text-[11px] font-medium mb-1">Full Message Content</span>
-                <div className="p-3 bg-slate-950 text-slate-200 font-mono text-[11px] rounded-md border border-slate-800 break-words leading-relaxed">
+                <div className="p-3 bg-slate-950 text-slate-200 font-mono text-[11px] rounded-md border border-slate-800 wrap-break-word leading-relaxed">
                   {selectedLog.message}
                 </div>
               </div>
+
+              {selectedLog.authResult && (
+                <div className="p-3 rounded-md bg-slate-50 border border-slate-200 text-slate-800">
+                  Authentication result: <strong>{selectedLog.authResult}</strong>
+                </div>
+              )}
 
               {selectedLog.detection && selectedLog.detection !== 'normal' && (
                 <div className="p-3 rounded-md bg-red-50 border border-red-200 text-red-800">
@@ -214,6 +236,7 @@ LogTable.propTypes = {
   logs: PropTypes.arrayOf(PropTypes.object),
   pageSize: PropTypes.number,
   showPagination: PropTypes.bool,
+  onDelete: PropTypes.func,
 };
 
 export default LogTable;

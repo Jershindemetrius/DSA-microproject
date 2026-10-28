@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 from app.models.log_entry import LogEntry
 
 
-def _dedupe_key(record: dict[str, Any]) -> str:
+def _dedupe_key(record: dict[str, Any], owner_id: int | None) -> str:
     payload = {
+        "owner_id": owner_id,
         "timestamp": record["timestamp"].isoformat() if isinstance(record["timestamp"], datetime) else str(record["timestamp"]),
         "source_ip": record.get("source_ip"),
         "destination_ip": record.get("destination_ip"),
@@ -22,7 +23,7 @@ def _dedupe_key(record: dict[str, Any]) -> str:
     return digest
 
 
-def ingest_log_records(session: Session, records: Iterable[dict[str, Any]]) -> dict[str, int]:
+def ingest_log_records(session: Session, records: Iterable[dict[str, Any]], owner_id: int | None = None) -> dict[str, int]:
     inserted = 0
     duplicates = 0
     invalid = 0
@@ -30,12 +31,17 @@ def ingest_log_records(session: Session, records: Iterable[dict[str, Any]]) -> d
         try:
             if not record.get("message"):
                 raise ValueError("missing message")
-            key = _dedupe_key(record)
-            existing = session.query(LogEntry).filter(LogEntry.dedupe_key == key).first()
+            key = _dedupe_key(record, owner_id)
+            existing = (
+                session.query(LogEntry)
+                .filter(LogEntry.dedupe_key == key, LogEntry.owner_id == owner_id)
+                .first()
+            )
             if existing:
                 duplicates += 1
                 continue
             log_entry = LogEntry(
+                owner_id=owner_id,
                 timestamp=record["timestamp"],
                 source_ip=record.get("source_ip"),
                 destination_ip=record.get("destination_ip"),

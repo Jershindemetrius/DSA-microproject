@@ -7,6 +7,7 @@ import Analyze from './pages/Analyze';
 import Logs from './pages/Logs';
 import Alerts from './pages/Alerts';
 import Reports from './pages/Reports';
+import Rules from './pages/Rules';
 import { LogProvider } from './context/LogContext';
 import { useLogs } from './context/LogContext';
 import AuthScreen from './components/AuthScreen';
@@ -38,6 +39,7 @@ function AppShell() {
               <Route path="/analyze" element={<Analyze />} />
               <Route path="/logs" element={<Logs />} />
               <Route path="/alerts" element={<Alerts />} />
+              <Route path="/rules" element={<Rules />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

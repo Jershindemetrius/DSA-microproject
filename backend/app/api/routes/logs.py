@@ -28,7 +28,7 @@ def add_log(
     else:
         records = [payload]
     try:
-        results = ingest_log_records(db, records)
+        results = ingest_log_records(db, records, owner_id=user.id)
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return LogIngestionResult(
@@ -42,7 +42,7 @@ def add_log(
 
 @router.post("/batch", response_model=LogIngestionResult, status_code=status.HTTP_201_CREATED)
 def batch_logs(payload: LogBatchRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    results = ingest_log_records(db, [entry.model_dump() for entry in payload.logs])
+    results = ingest_log_records(db, [entry.model_dump() for entry in payload.logs], owner_id=user.id)
     return LogIngestionResult(
         inserted=results["inserted"],
         duplicates=results["duplicates"],
@@ -65,7 +65,7 @@ def upload_logs(file: UploadFile = File(...), db: Session = Depends(get_db), use
         )
     except (UnicodeDecodeError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    result = ingest_log_records(db, records)
+    result = ingest_log_records(db, records, owner_id=user.id)
     return LogIngestionResult(
         inserted=result["inserted"],
         duplicates=result["duplicates"],
@@ -87,7 +87,7 @@ def export_logs(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    query = _filtered_log_query(db, source_ip, username, event_type, severity, start_date, end_date, search)
+    query = _filtered_log_query(db, user.id, source_ip, username, event_type, severity, start_date, end_date, search)
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["id", "timestamp", "source_ip", "username", "event_type", "severity", "message", "auth_result"])
@@ -103,8 +103,8 @@ def export_logs(
     )
 
 
-def _filtered_log_query(db, source_ip, username, event_type, severity, start_date, end_date, search):
-    query = db.query(LogEntry)
+def _filtered_log_query(db, owner_id, source_ip, username, event_type, severity, start_date, end_date, search):
+    query = db.query(LogEntry).filter(LogEntry.owner_id == owner_id)
     if source_ip:
         query = query.filter(LogEntry.source_ip == source_ip)
     if username:
@@ -143,7 +143,7 @@ def list_logs(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    query = _filtered_log_query(db, source_ip, username, event_type, severity, start_date, end_date, search)
+    query = _filtered_log_query(db, user.id, source_ip, username, event_type, severity, start_date, end_date, search)
     total = query.count()
     ordering_column = LogEntry.timestamp if sort_by == "timestamp" else LogEntry.severity
     ordering = ordering_column.desc() if sort_order == "desc" else ordering_column.asc()
@@ -170,7 +170,7 @@ def list_logs(
 
 @router.get("/{log_id}", response_model=LogEntryOut)
 def get_log(log_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    log = db.query(LogEntry).filter(LogEntry.id == log_id).first()
+    log = db.query(LogEntry).filter(LogEntry.id == log_id, LogEntry.owner_id == user.id).first()
     if not log:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Log record not found")
     return LogEntryOut.model_validate({
@@ -192,7 +192,7 @@ def get_log(log_id: int, db: Session = Depends(get_db), user: User = Depends(get
 
 @router.delete("/{log_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_log(log_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    log = db.query(LogEntry).filter(LogEntry.id == log_id).first()
+    log = db.query(LogEntry).filter(LogEntry.id == log_id, LogEntry.owner_id == user.id).first()
     if not log:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Log record not found")
     db.delete(log)

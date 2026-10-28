@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.alert import Alert
@@ -8,8 +9,13 @@ from app.models.log_entry import LogEntry
 from app.services.threat_detector import detect_threats
 
 
-def run_analysis(session: Session, failed_attempt_threshold: int = 3, sliding_window_seconds: int = 300, suspicious_pattern: str | None = None) -> dict[str, Any]:
-    logs = session.query(LogEntry).order_by(LogEntry.timestamp.asc()).all()
+def run_analysis(session: Session, failed_attempt_threshold: int = 3, sliding_window_seconds: int = 300, suspicious_pattern: str | None = None, owner_id: int | None = None) -> dict[str, Any]:
+    logs = (
+        session.query(LogEntry)
+        .filter(LogEntry.owner_id == owner_id)
+        .order_by(LogEntry.timestamp.asc())
+        .all()
+    )
     normalized_logs = [
         {
             "id": log.id,
@@ -31,6 +37,7 @@ def run_analysis(session: Session, failed_attempt_threshold: int = 3, sliding_wi
     for alert in alerts:
         from app.models.alert import Alert as AlertModel
         alert_model = AlertModel(
+            owner_id=owner_id,
             title=alert["title"],
             description=alert["description"],
             severity=alert["severity"],
@@ -54,18 +61,46 @@ def run_analysis(session: Session, failed_attempt_threshold: int = 3, sliding_wi
     }
 
 
-def total_logs(session: Session) -> int:
-    return session.query(LogEntry).count()
+def total_logs(session: Session, owner_id: int) -> int:
+    return session.query(LogEntry).filter(LogEntry.owner_id == owner_id).count()
 
 
-def total_alerts(session: Session) -> int:
-    return session.query(Alert).count()
+def total_alerts(session: Session, owner_id: int) -> int:
+    return session.query(Alert).filter(Alert.owner_id == owner_id).count()
 
 
-def summary(session: Session):
+def summary(session: Session, owner_id: int):
+    suspicious_ips = [
+        row[0]
+        for row in session.query(LogEntry.source_ip)
+        .filter(
+            LogEntry.owner_id == owner_id,
+            LogEntry.event_type == "failed_login",
+            LogEntry.source_ip.is_not(None),
+        )
+        .group_by(LogEntry.source_ip)
+        .order_by(func.count(LogEntry.id).desc())
+        .limit(10)
+        .all()
+    ]
+    suspicious_usernames = [
+        row[0]
+        for row in session.query(LogEntry.username)
+        .filter(
+            LogEntry.owner_id == owner_id,
+            LogEntry.event_type == "failed_login",
+            LogEntry.username.is_not(None),
+        )
+        .group_by(LogEntry.username)
+        .order_by(func.count(LogEntry.id).desc())
+        .limit(10)
+        .all()
+    ]
     return {
-        "total_logs": total_logs(session),
-        "total_alerts": total_alerts(session),
-        "failed_logins": session.query(LogEntry).filter(LogEntry.event_type == "failed_login").count(),
-        "successful_logins": session.query(LogEntry).filter(LogEntry.event_type == "successful_login").count(),
+        "total_logs": total_logs(session, owner_id),
+        "total_alerts": total_alerts(session, owner_id),
+        "failed_logins": session.query(LogEntry).filter(LogEntry.owner_id == owner_id, LogEntry.event_type == "failed_login").count(),
+        "successful_logins": session.query(LogEntry).filter(LogEntry.owner_id == owner_id, LogEntry.event_type == "successful_login").count(),
+        "suspicious_ips": suspicious_ips,
+        "suspicious_usernames": suspicious_usernames,
     }

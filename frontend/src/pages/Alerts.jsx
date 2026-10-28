@@ -1,44 +1,95 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   ShieldAlert, 
   CheckCircle, 
-  Clock, 
-  AlertTriangle, 
-  Filter, 
   Eye, 
   X,
-  FileCheck2,
-  ExternalLink,
-  ChevronRight
 } from 'lucide-react';
 import { useLogs } from '../context/LogContext';
 import SeverityBadge from '../components/SeverityBadge';
+import { fetchAlerts } from '../services/api';
+
+const STATUS_LABELS = {
+  open: 'Open',
+  acknowledged: 'Acknowledged',
+  resolved: 'Resolved',
+};
 
 function Alerts() {
-  const { alerts, updateAlertStatus } = useLogs();
+  const {
+    alerts,
+    alertsLoading: sharedAlertsLoading,
+    alertsError: sharedAlertsError,
+    updateAlertStatus,
+  } = useLogs();
   const [statusFilter, setStatusFilter] = useState('all');
+  const [visibleAlerts, setVisibleAlerts] = useState([]);
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [alertsError, setAlertsError] = useState('');
+  const [reload, setReload] = useState(0);
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [actionSuccessNotice, setActionSuccessNotice] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [updating, setUpdating] = useState(false);
 
-  const filteredAlerts = alerts.filter(alert => {
-    if (statusFilter !== 'all' && alert.status !== statusFilter) return false;
-    return true;
-  });
+  const filteredAlerts = visibleAlerts;
 
-  const handleStatusChange = (id, newStatus) => {
-    updateAlertStatus(id, newStatus);
-    if (selectedAlert && selectedAlert.id === id) {
-      setSelectedAlert(prev => ({ ...prev, status: newStatus }));
+  useEffect(() => {
+    if (statusFilter === 'all') {
+      setVisibleAlerts(alerts);
+      setAlertsLoading(sharedAlertsLoading);
+      setAlertsError(sharedAlertsError);
+      return undefined;
     }
-    setActionSuccessNotice(`Alert ${id} updated to "${newStatus}"`);
-    setTimeout(() => setActionSuccessNotice(''), 3000);
+
+    let active = true;
+    setAlertsLoading(true);
+    setAlertsError('');
+    fetchAlerts({ status: statusFilter })
+      .then((response) => {
+        if (active) {
+          setVisibleAlerts(response.map((alert) => ({
+            ...alert,
+            timestamp: alert.detected_at,
+            sourceIp: alert.source_ip,
+            category: alert.title,
+            reason: alert.description,
+            recommendation: alert.recommended_action,
+          })));
+        }
+      })
+      .catch((error) => {
+        if (active) setAlertsError(error.message);
+      })
+      .finally(() => {
+        if (active) setAlertsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [alerts, sharedAlertsLoading, sharedAlertsError, statusFilter, reload]);
+
+  const handleStatusChange = async (id, newStatus) => {
+    setUpdating(true);
+    setActionError('');
+    setActionSuccessNotice('');
+    try {
+      const updatedAlert = await updateAlertStatus(id, newStatus);
+      setSelectedAlert(updatedAlert);
+      setActionSuccessNotice(`Alert ${id} updated to "${newStatus}".`);
+      setReload((current) => current + 1);
+    } catch (error) {
+      setActionError(error.message);
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const statusCounts = {
     all: alerts.length,
-    new: alerts.filter(a => a.status === 'New').length,
-    underReview: alerts.filter(a => a.status === 'Under Review').length,
-    resolved: alerts.filter(a => a.status === 'Resolved').length,
+    open: alerts.filter(a => a.status === 'open').length,
+    acknowledged: alerts.filter(a => a.status === 'acknowledged').length,
+    resolved: alerts.filter(a => a.status === 'resolved').length,
   };
 
   return (
@@ -53,6 +104,17 @@ function Alerts() {
           <button onClick={() => setActionSuccessNotice('')} className="text-emerald-700 hover:text-emerald-900">
             <X className="w-3.5 h-3.5" />
           </button>
+        </div>
+      )}
+      {actionError && (
+        <div role="alert" className="p-3 bg-red-50 border border-red-200 text-red-800 rounded-md text-xs">
+          {actionError}
+        </div>
+      )}
+      {alertsError && (
+        <div role="alert" className="p-3 bg-red-50 border border-red-200 text-red-800 rounded-md text-xs">
+          {alertsError}
+          <button onClick={() => setReload((current) => current + 1)} className="ml-3 font-semibold underline">Retry</button>
         </div>
       )}
 
@@ -81,29 +143,29 @@ function Alerts() {
             All Alerts ({statusCounts.all})
           </button>
           <button
-            onClick={() => setStatusFilter('New')}
+            onClick={() => setStatusFilter('open')}
             className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
-              statusFilter === 'New'
+              statusFilter === 'open'
                 ? 'bg-red-600 text-white shadow-2xs'
                 : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
             }`}
           >
-            New ({statusCounts.new})
+            Open ({statusCounts.open})
           </button>
           <button
-            onClick={() => setStatusFilter('Under Review')}
+            onClick={() => setStatusFilter('acknowledged')}
             className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
-              statusFilter === 'Under Review'
+              statusFilter === 'acknowledged'
                 ? 'bg-amber-600 text-white shadow-2xs'
                 : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
             }`}
           >
-            Under Review ({statusCounts.underReview})
+            Acknowledged ({statusCounts.acknowledged})
           </button>
           <button
             onClick={() => setStatusFilter('Resolved')}
             className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
-              statusFilter === 'Resolved'
+              statusFilter === 'resolved'
                 ? 'bg-emerald-600 text-white shadow-2xs'
                 : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
             }`}
@@ -130,10 +192,12 @@ function Alerts() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
-              {filteredAlerts.length === 0 ? (
+              {alertsLoading ? (
+                <tr><td colSpan="8" className="px-4 py-8 text-center text-gray-500">Loading alerts…</td></tr>
+              ) : filteredAlerts.length === 0 ? (
                 <tr>
                   <td colSpan="8" className="px-4 py-8 text-center text-gray-500">
-                    No threat alerts in the "{statusFilter}" status category.
+                    No alerts have been returned for this status.
                   </td>
                 </tr>
               ) : (
@@ -159,13 +223,13 @@ function Alerts() {
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${
-                        alert.status === 'Resolved'
+                        alert.status === 'resolved'
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : alert.status === 'Under Review'
+                          : alert.status === 'acknowledged'
                           ? 'bg-amber-50 text-amber-700 border-amber-200'
                           : 'bg-red-50 text-red-700 border-red-200'
                       }`}>
-                        {alert.status}
+                        {STATUS_LABELS[alert.status] || alert.status}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap space-x-1.5">
@@ -241,29 +305,32 @@ function Alerts() {
                 <span className="text-gray-700 block font-semibold mb-2">Update Incident Review Status:</span>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleStatusChange(selectedAlert.id, 'New')}
+                    disabled={updating}
+                    onClick={() => handleStatusChange(selectedAlert.id, 'open')}
                     className={`px-3 py-1.5 rounded font-semibold text-xs border ${
-                      selectedAlert.status === 'New'
+                      selectedAlert.status === 'open'
                         ? 'bg-red-600 text-white border-red-700'
                         : 'bg-white text-slate-700 hover:bg-slate-100 border-gray-300'
                     }`}
                   >
-                    Mark as New
+                    Mark as Open
                   </button>
                   <button
-                    onClick={() => handleStatusChange(selectedAlert.id, 'Under Review')}
+                    disabled={updating}
+                    onClick={() => handleStatusChange(selectedAlert.id, 'acknowledged')}
                     className={`px-3 py-1.5 rounded font-semibold text-xs border ${
-                      selectedAlert.status === 'Under Review'
+                      selectedAlert.status === 'acknowledged'
                         ? 'bg-amber-600 text-white border-amber-700'
                         : 'bg-white text-slate-700 hover:bg-slate-100 border-gray-300'
                     }`}
                   >
-                    Mark as Under Review
+                    Mark as Acknowledged
                   </button>
                   <button
-                    onClick={() => handleStatusChange(selectedAlert.id, 'Resolved')}
+                    disabled={updating}
+                    onClick={() => handleStatusChange(selectedAlert.id, 'resolved')}
                     className={`px-3 py-1.5 rounded font-semibold text-xs border ${
-                      selectedAlert.status === 'Resolved'
+                      selectedAlert.status === 'resolved'
                         ? 'bg-emerald-600 text-white border-emerald-700'
                         : 'bg-white text-slate-700 hover:bg-slate-100 border-gray-300'
                     }`}
@@ -271,6 +338,7 @@ function Alerts() {
                     Mark as Resolved
                   </button>
                 </div>
+                {updating && <p className="mt-2 text-xs text-gray-500">Saving status…</p>}
               </div>
             </div>
 

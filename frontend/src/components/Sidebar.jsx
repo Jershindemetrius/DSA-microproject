@@ -7,6 +7,7 @@ import {
   ShieldAlert, 
   FileText, 
   ShieldCheck, 
+  SlidersHorizontal,
   X,
   Server
 } from 'lucide-react';
@@ -17,6 +18,7 @@ const navItems = [
   { to: '/analyze', label: 'Analyze Logs', icon: FileSearch },
   { to: '/logs', label: 'Log Explorer', icon: ListFilter },
   { to: '/alerts', label: 'Threat Alerts', icon: ShieldAlert, showBadge: true },
+  { to: '/rules', label: 'Detection Rules', icon: SlidersHorizontal },
   { to: '/reports', label: 'Reports', icon: FileText },
 ];
 

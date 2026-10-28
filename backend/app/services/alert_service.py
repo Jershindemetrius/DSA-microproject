@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from app.models.alert import Alert
 
 
-def list_alerts(session: Session, severity: str | None = None, status: str | None = None, source_ip: str | None = None):
-    query = session.query(Alert)
+def list_alerts(session: Session, owner_id: int, severity: str | None = None, status: str | None = None, source_ip: str | None = None):
+    query = session.query(Alert).filter(Alert.owner_id == owner_id)
     if severity:
         query = query.filter(Alert.severity == severity)
     if status:
@@ -15,8 +15,8 @@ def list_alerts(session: Session, severity: str | None = None, status: str | Non
     return query.order_by(Alert.detected_at.desc()).all()
 
 
-def get_alert(session: Session, alert_id: int):
-    return session.query(Alert).filter(Alert.id == alert_id).first()
+def get_alert(session: Session, alert_id: int, owner_id: int):
+    return session.query(Alert).filter(Alert.id == alert_id, Alert.owner_id == owner_id).first()
 
 
 def update_alert(session: Session, alert: Alert, status: str, note: str | None = None):

@@ -21,29 +21,31 @@ def run_analysis_route(payload: AnalysisRunRequest, db: Session = Depends(get_db
         failed_attempt_threshold=payload.failed_attempt_threshold,
         sliding_window_seconds=payload.sliding_window_seconds,
         suspicious_pattern=payload.suspicious_pattern,
+        owner_id=user.id,
     )
     return result
 
 
 @router.get("/summary", response_model=AnalysisSummaryResponse)
 def analysis_summary(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    values = summary(db)
+    values = summary(db, user.id)
     return AnalysisSummaryResponse(
         total_logs=values.get("total_logs", 0),
         total_alerts=values.get("total_alerts", 0),
         failed_logins=values.get("failed_logins", 0),
         successful_logins=values.get("successful_logins", 0),
-        suspicious_ips=[],
-        suspicious_usernames=[],
-        alerts_generated=0,
-        duplicate_skips=0,
-        algorithms={},
+        suspicious_ips=values["suspicious_ips"],
+        suspicious_usernames=values["suspicious_usernames"],
+        alerts_generated=values["total_alerts"],
     )
 
 
 @router.get("/top-suspicious-ips")
 def top_suspicious_ips(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    rows = db.query(LogEntry.source_ip, LogEntry.event_type, LogEntry.username).filter(LogEntry.source_ip.is_not(None)).all()
+    rows = db.query(LogEntry.source_ip, LogEntry.event_type, LogEntry.username).filter(
+        LogEntry.owner_id == user.id,
+        LogEntry.source_ip.is_not(None),
+    ).all()
     grouped = {}
     for source_ip, event_type, username in rows:
         grouped[source_ip] = grouped.get(source_ip, {"count": 0, "types": set(), "usernames": set()})
@@ -63,7 +65,7 @@ def top_suspicious_ips(db: Session = Depends(get_db), user: User = Depends(get_c
 @router.get("/correlations")
 def get_correlations(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     graph = EventCorrelationGraph()
-    for log in db.query(LogEntry).all():
+    for log in db.query(LogEntry).filter(LogEntry.owner_id == user.id).all():
         if log.source_ip and log.username:
             graph.connect(log.source_ip, log.username)
     return {"correlations": graph.connected_components()}

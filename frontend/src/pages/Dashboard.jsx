@@ -19,8 +19,6 @@ import {
   CheckCircle, 
   ArrowRight,
   TrendingUp,
-  Clock,
-  ShieldCheck,
   ExternalLink
 } from 'lucide-react';
 import SummaryCard from '../components/SummaryCard';
@@ -132,14 +130,19 @@ function Dashboard() {
         <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs">
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Events by Severity</h3>
-              <p className="text-xs text-gray-500">Distribution across analyzed log records</p>
+              <h3 className="text-sm font-bold text-slate-900">Alerts by Severity</h3>
+              <p className="text-xs text-gray-500">Distribution returned by the backend</p>
             </div>
             <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded">
               {totalAlerts ?? '—'} Alerts Total
             </span>
           </div>
           <div className="h-64 w-full">
+            {!dashboard && !dashboardLoading ? (
+              <div className="h-full flex items-center justify-center text-sm text-gray-500">Severity data is unavailable.</div>
+            ) : dashboardLoading && !dashboard ? (
+              <div className="h-full flex items-center justify-center text-sm text-gray-500">Loading severity data…</div>
+            ) : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={barData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -156,6 +159,7 @@ function Dashboard() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -172,7 +176,11 @@ function Dashboard() {
             </div>
           </div>
           <div className="h-64 w-full">
-            {!dashboardLoading && dashboard && timelineData.length === 0 ? (
+            {!dashboard && !dashboardLoading ? (
+              <div className="h-full flex items-center justify-center text-sm text-gray-500">Event volume is unavailable.</div>
+            ) : dashboardLoading && !dashboard ? (
+              <div className="h-full flex items-center justify-center text-sm text-gray-500">Loading event volume…</div>
+            ) : timelineData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-sm text-gray-500">No event volume is available yet.</div>
             ) : (
             <ResponsiveContainer width="100%" height="100%">

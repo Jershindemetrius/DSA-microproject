@@ -17,6 +17,9 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (axios.isCancel(error)) {
+      return Promise.reject(error);
+    }
     const status = error.response?.status;
     if (status === 401 && !error.config?.url?.startsWith('/auth/login')) {
       sessionStorage.removeItem(TOKEN_KEY);

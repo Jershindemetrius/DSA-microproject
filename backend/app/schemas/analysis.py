@@ -19,5 +19,5 @@ class AnalysisSummaryResponse(BaseModel):
     suspicious_ips: list[str]
     suspicious_usernames: list[str]
     alerts_generated: int
-    duplicate_skips: int
-    algorithms: dict[str, Any]
+    duplicate_skips: Optional[int] = None
+    algorithms: Optional[dict[str, Any]] = None

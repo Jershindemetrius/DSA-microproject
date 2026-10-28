@@ -18,13 +18,13 @@ def get_alerts(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    alerts = list_alerts(db, severity=severity, status=status, source_ip=source_ip)
+    alerts = list_alerts(db, owner_id=user.id, severity=severity, status=status, source_ip=source_ip)
     return [AlertOut.model_validate(alert) for alert in alerts]
 
 
 @router.get("/{alert_id}", response_model=AlertOut)
 def get_alert_by_id(alert_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    alert = get_alert(db, alert_id)
+    alert = get_alert(db, alert_id, user.id)
     if not alert:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
     return AlertOut.model_validate(alert)
@@ -32,7 +32,7 @@ def get_alert_by_id(alert_id: int, db: Session = Depends(get_db), user: User = D
 
 @router.patch("/{alert_id}", response_model=AlertOut)
 def update_alert_by_id(alert_id: int, payload: AlertUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    alert = get_alert(db, alert_id)
+    alert = get_alert(db, alert_id, user.id)
     if not alert:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
     alert = update_alert(db, alert, payload.status, payload.note)

@@ -65,8 +65,11 @@ export function LogProvider({ children }) {
       .then((currentUser) => {
         if (active) setUser(currentUser);
       })
-      .catch(() => {
-        if (active) logout();
+      .catch((error) => {
+        if (active) {
+          logout();
+          setAuthError(error.message);
+        }
       })
       .finally(() => {
         if (active) setAuthLoading(false);
