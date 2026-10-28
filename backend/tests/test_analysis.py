@@ -22,7 +22,8 @@ def test_run_analysis_groups_identityless_security_events(client, auth_headers):
     ]}
     upload = client.post("/api/v1/logs/batch", json=payload, headers=auth_headers)
     assert upload.status_code == 201
-    log_ids = [log["id"] for log in upload.json()]
+    logs_response = client.get("/api/v1/logs?size=100", headers=auth_headers)
+    log_ids = [log["id"] for log in logs_response.json()["items"]]
 
     response = client.post("/api/v1/analysis/run", json={}, headers=auth_headers)
 
@@ -34,4 +35,4 @@ def test_run_analysis_groups_identityless_security_events(client, auth_headers):
     assert alert["detection_type"] == "malformed_event"
     assert alert["title"] == "Malformed or anomalous events"
     assert "5 security or error event(s)" in alert["description"]
-    assert alert["related_log_ids"] == log_ids
+    assert alert["related_log_ids"] == sorted(log_ids)
