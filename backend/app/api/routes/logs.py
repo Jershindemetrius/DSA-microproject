@@ -1,14 +1,18 @@
+import csv
+import io
+from math import ceil
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, get_db
+from app.core.config import settings
 from app.models.log_entry import LogEntry
 from app.models.user import User
-from app.schemas.log import LogBatchRequest, LogEntryCreate, LogEntryOut, LogIngestionResult
+from app.schemas.log import LogBatchRequest, LogEntryOut, LogIngestionResult, LogPage
 from app.services.log_ingestion import ingest_log_records
-from app.services.log_parser import parse_upload_file
+from app.services.log_parser import parse_upload_content
 
 router = APIRouter(prefix="/api/v1/logs", tags=["logs"])
 
@@ -50,7 +54,17 @@ def batch_logs(payload: LogBatchRequest, db: Session = Depends(get_db), user: Us
 
 @router.post("/upload", response_model=LogIngestionResult, status_code=status.HTTP_201_CREATED)
 def upload_logs(file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    records, valid, rejected, errors = parse_upload_file(file)
+    content = file.file.read(settings.max_upload_size + 1)
+    if len(content) > settings.max_upload_size:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Uploaded file exceeds the configured size limit")
+    try:
+        records, valid, rejected, errors = parse_upload_content(
+            file.filename or "",
+            content,
+            max_records=settings.max_records_per_upload,
+        )
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     result = ingest_log_records(db, records)
     return LogIngestionResult(
         inserted=result["inserted"],
@@ -61,19 +75,35 @@ def upload_logs(file: UploadFile = File(...), db: Session = Depends(get_db), use
     )
 
 
-@router.get("", response_model=list[LogEntryOut])
-def list_logs(
-    page: int = Query(default=1, ge=1),
-    size: int = Query(default=20, ge=1, le=100),
+@router.get("/export.csv")
+def export_logs(
     source_ip: str | None = None,
     username: str | None = None,
     event_type: str | None = None,
     severity: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
+    search: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    query = _filtered_log_query(db, source_ip, username, event_type, severity, start_date, end_date, search)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "timestamp", "source_ip", "username", "event_type", "severity", "message", "auth_result"])
+    for item in query.order_by(LogEntry.timestamp.desc()).all():
+        message = item.message
+        if message.lstrip().startswith(("=", "+", "-", "@")):
+            message = "'" + message
+        writer.writerow([item.id, item.timestamp.isoformat(), item.source_ip, item.username, item.event_type, item.severity, message, item.auth_result])
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=security-logs.csv"},
+    )
+
+
+def _filtered_log_query(db, source_ip, username, event_type, severity, start_date, end_date, search):
     query = db.query(LogEntry)
     if source_ip:
         query = query.filter(LogEntry.source_ip == source_ip)
@@ -87,7 +117,37 @@ def list_logs(
         query = query.filter(LogEntry.timestamp >= start_date)
     if end_date:
         query = query.filter(LogEntry.timestamp <= end_date)
-    logs = query.order_by(LogEntry.timestamp.desc()).offset((page - 1) * size).limit(size).all()
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter(
+            (LogEntry.message.ilike(pattern))
+            | (LogEntry.source_ip.ilike(pattern))
+            | (LogEntry.username.ilike(pattern))
+        )
+    return query
+
+
+@router.get("", response_model=LogPage)
+def list_logs(
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=100),
+    source_ip: str | None = None,
+    username: str | None = None,
+    event_type: str | None = None,
+    severity: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    search: str | None = None,
+    sort_by: str = Query(default="timestamp", pattern="^(timestamp|severity)$"),
+    sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    query = _filtered_log_query(db, source_ip, username, event_type, severity, start_date, end_date, search)
+    total = query.count()
+    ordering_column = LogEntry.timestamp if sort_by == "timestamp" else LogEntry.severity
+    ordering = ordering_column.desc() if sort_order == "desc" else ordering_column.asc()
+    logs = query.order_by(ordering, LogEntry.id.desc()).offset((page - 1) * size).limit(size).all()
     response = []
     for item in logs:
         response.append(LogEntryOut.model_validate({
@@ -105,7 +165,7 @@ def list_logs(
             "raw_content": item.raw_content,
             "created_at": item.created_at,
         }))
-    return response
+    return LogPage(items=response, total=total, page=page, size=size, pages=ceil(total / size) if total else 0)
 
 
 @router.get("/{log_id}", response_model=LogEntryOut)

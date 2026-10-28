@@ -6,7 +6,7 @@ from typing import Any, Iterable
 from fastapi import UploadFile
 
 
-ALLOWED_EXTENSIONS = {".json", ".jsonl", ".ndjson", ".log"}
+ALLOWED_EXTENSIONS = {".json", ".jsonl", ".ndjson", ".log", ".txt"}
 SSH_RE = re.compile(r"(?P<host>\S+)?\s*(?:sshd\[\d+\]:\s*)?(?P<action>Failed|Accepted|Invalid|session|error)\s*(?:password|publickey|keyboard-interactive/pam)?\s*(?:for\s*(?:invalid user\s*)?(?P<user>\S+)\s*)?(?:from\s*(?P<src_ip>\d+\.\d+\.\d+\.\d+)\s*)?(?:port\s*(?P<port>\d+))?", re.IGNORECASE)
 
 
@@ -112,6 +112,24 @@ def parse_upload_content(filename: str, content: bytes, max_records: int = 5000,
     valid = 0
     rejected = 0
     errors: list[str] = []
+    if ext == ".json":
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON: {exc.msg}") from exc
+        payloads = payload if isinstance(payload, list) else [payload]
+        for idx, item in enumerate(payloads, start=1):
+            if idx > max_records:
+                errors.append(f"Record limit of {max_records} reached; remaining records were skipped")
+                break
+            try:
+                records.append(parse_log_object(item))
+                valid += 1
+            except (ValueError, TypeError) as exc:
+                rejected += 1
+                errors.append(f"Record {idx}: {exc}")
+        return records, valid, rejected, errors
+
     for idx, raw_line in enumerate(text.splitlines(), start=1):
         if not raw_line.strip():
             continue
@@ -123,19 +141,6 @@ def parse_upload_content(filename: str, content: bytes, max_records: int = 5000,
             if ext in {".jsonl", ".ndjson"}:
                 payload = json.loads(raw_line)
                 record = parse_log_object(payload)
-            elif ext == ".json":
-                payload = json.loads(text)
-                if isinstance(payload, list):
-                    for item in payload:
-                        if len(records) >= max_records:
-                            break
-                        try:
-                            records.append(parse_log_object(item))
-                        except ValueError as exc:
-                            rejected += 1
-                            errors.append(f"JSON record: {exc}")
-                    return records, valid, rejected, errors
-                record = parse_log_object(payload)
             else:
                 record = parse_text_log_line(raw_line)
             records.append(record)
@@ -145,8 +150,6 @@ def parse_upload_content(filename: str, content: bytes, max_records: int = 5000,
         except (json.JSONDecodeError, ValueError, TypeError) as exc:
             rejected += 1
             errors.append(f"Line {idx}: {exc}")
-    if ext == ".json" and isinstance(json.loads(text), list):
-        return records, valid, rejected, errors
     return records, valid, rejected, errors
 
 

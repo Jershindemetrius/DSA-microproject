@@ -49,3 +49,11 @@ class LogIngestionResult(BaseModel):
     rejected: int
     total_valid: int
     errors: list[str] = []
+
+
+class LogPage(BaseModel):
+    items: list[LogEntryOut]
+    total: int
+    page: int
+    size: int
+    pages: int

@@ -8,6 +8,7 @@ class DashboardSummary(BaseModel):
     total_log_count: int
     failed_login_count: int
     successful_login_count: int
+    total_alert_count: int
     alerts_by_severity: dict[str, int]
     alerts_by_status: dict[str, int]
     most_suspicious_ips: list[dict[str, Any]]
